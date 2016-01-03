@@ -1,0 +1,93 @@
+<?php
+/**
+ * @file
+ * Módulo Search Forcontu
+ * Este módulo prueba funcionalidades de búsqueda
+ */
+
+/**
+ * Implements hook_node_update_index().
+ */
+function search_forcontu_node_update_index($node) {
+  if ($node->promote == 1) {
+    return 'destacado';
+  }
+}
+
+/**
+ * Implements hook_node_search_result().
+ */
+function search_forcontu_node_search_result($node) {
+  if ($node->promote == 1) {
+    return array('destacado' => t("Contenido destacado"));
+  }
+}
+
+/**
+ * Implements hook_search_info().
+ */
+function search_forcontu_search_info() {
+  return array(
+    'title' => 'News',
+    'path' => 'news',
+  );
+}
+
+/**
+ * Implements hook_search_execute().
+ */
+function search_forcontu_search_execute($keys = NULL, $conditions = NULL) {
+  if (!$keys) {
+    $keys = '';
+  }
+
+  $results = array();
+
+  $query = db_select('node', 'n');
+  $search = $query
+    ->condition('n.status', NODE_PUBLISHED)
+    ->fields('n', array('nid', 'title'))
+    ->condition('n.type', 'article')
+    ->orderBy('n.changed', 'DESC')
+    ->condition('n.title', '%' . db_like($keys) . '%', 'LIKE')
+    ->extend('PagerDefault')
+    ->limit(10)
+    ->execute();
+
+  foreach ($search as $item) {
+    $node = node_load($item->nid);
+    $uri = entity_uri('node', $node);
+
+    $results[] = array(
+      'link' => url($uri['path'], array_merge($uri['options'], array('absolute' => TRUE))),
+      'title' => $node->title,
+      'date' => $node->changed,
+    );
+  }
+  return $results;
+}
+
+/**
+ * Implements hook_search_page().
+ */
+function search_forcontu_search_page($results) {
+  $output['prefix']['#markup'] = '<h2>Artículos</h2> <ol class="search-results">';
+
+  foreach ($results as $entry) {
+    $output[] = array(
+      '#theme' => 'search_result',
+      '#result' => $entry,
+      '#module' => 'search_forcontu',
+    );
+  }
+  $output['suffix']['#markup'] = '</ol>' . theme('pager');
+
+  return $output;
+}
+
+/**
+ * Implements hook_search_access().
+ */
+function search_forcontu_search_access() {
+  return user_access('access content');
+}
